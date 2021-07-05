@@ -634,7 +634,7 @@ StatusOr<HloInstruction*> PartitionGather(const HloGatherInstruction* gather,
       PartitionIndexParallelDimensions(gather, output_shape, output_sharding,
                                        batch_dims, operand, indices, visitor));
   if (partitioned_gather) {
-    std::cerr << "case 1" << std::endl;
+    std::cerr << "gather case 1" << std::endl;
     return partitioned_gather;
   }
   // Pefrorm passthrough and trivial slice partitioning of the Gather.
@@ -644,7 +644,7 @@ StatusOr<HloInstruction*> PartitionGather(const HloGatherInstruction* gather,
         ParititonPassthroughOperand(gather, output_shape, output_sharding,
                                     batch_dims, operand, indices, visitor));
     if (partitioned_gather) {
-      std::cerr << "case 2" << std::endl;
+      std::cerr << "gather case 2" << std::endl;
       return partitioned_gather;
     }
     TF_ASSIGN_OR_RETURN(partitioned_gather,
@@ -652,7 +652,7 @@ StatusOr<HloInstruction*> PartitionGather(const HloGatherInstruction* gather,
                             gather, output_shape, output_sharding, batch_dims,
                             operand, indices, visitor));
     if (partitioned_gather) {
-      std::cerr << "case 3" << std::endl;
+      std::cerr << "gather case 3" << std::endl;
       return partitioned_gather;
     }
   }
@@ -771,6 +771,7 @@ Status SpmdPartitioningVisitor::HandleScatter(HloInstruction* hlo) {
             .Reshard(hlo->sharding())
             .hlo();
       });
+      std::cerr << "scatter case 4" << std::endl;
       return Status::OK();
     }
   } else {
@@ -790,6 +791,7 @@ Status SpmdPartitioningVisitor::HandleScatter(HloInstruction* hlo) {
             .Reshard(hlo->sharding())
             .hlo();
       });
+      std::cerr << "scatter case 2" << std::endl;
       return Status::OK();
     }
     if (GatherScatterOperandPartitionedOnlyOnTrivialSliceDims(
@@ -822,6 +824,7 @@ Status SpmdPartitioningVisitor::HandleScatter(HloInstruction* hlo) {
             .Reshard(hlo->sharding())
             .hlo();
       });
+      std::cerr << "scatter case 3" << std::endl;
       return Status::OK();
     }
   }
@@ -860,10 +863,10 @@ Status SpmdPartitioningVisitor::HandleGather(HloInstruction* hlo) {
                                    operand, indices, &b_));
   if (pgather) {
     SetPartitionedHlo(gather, [pgather] { return pgather; });
-    std::cerr << "case 4" << std::endl;
+    std::cerr << "gather case 4" << std::endl;
     return Status::OK();
   }
-  std::cerr << "case 5" << std::endl;
+  std::cerr << "gather case 5" << std::endl;
   return DefaultAction(gather);
 }
 
