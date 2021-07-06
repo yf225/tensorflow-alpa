@@ -27,6 +27,9 @@ limitations under the License.
 namespace xla {
 namespace spmd {
 
+bool IsMatmulLikeGather(const HloGatherInstruction* gather);
+bool IsMatmulLikeScatter(const HloScatterInstruction* scatter);
+
 namespace {
 
 // Returns whether partitioning in the operand only happens in dimensions with
@@ -610,6 +613,14 @@ StatusOr<HloInstruction*> PartitionIndexParallelDimensions(
   return nullptr;
 }
 
+StatusOr<HloInstruction*> PartitionMatmulLikeGather(
+    const HloGatherInstruction* gather, Shape output_shape,
+    const HloSharding& output_sharding, absl::Span<const int64> batch_dims,
+    PartitionedHlo& operand, PartitionedHlo& indices,
+    SpmdPartitioningVisitor* visitor) {
+  return nullptr;
+}
+
 StatusOr<HloInstruction*> PartitionGather(const HloGatherInstruction* gather,
                                           PartitionedHlo& operand,
                                           PartitionedHlo& indices,
@@ -629,6 +640,16 @@ StatusOr<HloInstruction*> PartitionGather(const HloGatherInstruction* gather,
   // if we have sharded the operand and indices across those dimensions.
   // If that's the case then we can partition the gather across such dimensions
   // by adjusting the offsets.
+ 
+  TF_ASSIGN_OR_RETURN(
+      partitioned_gather,
+      PartitionMatmulLikeGather(gather, output_shape, output_sharding,
+                                batch_dims, operand, indices, visitor));
+  if (partitioned_gather) {
+    std::cerr << "gather case matmul-like" << std::endl;
+    return partitioned_gather;
+  }
+
   TF_ASSIGN_OR_RETURN(
       partitioned_gather,
       PartitionIndexParallelDimensions(gather, output_shape, output_sharding,
@@ -868,6 +889,60 @@ Status SpmdPartitioningVisitor::HandleGather(HloInstruction* hlo) {
   }
   std::cerr << "gather case 5" << std::endl;
   return DefaultAction(gather);
+}
+
+bool IsMatmulLikeGather(const HloGatherInstruction* gather) {
+  const auto& dnums = gather->gather_dimension_numbers();
+  // Map a gather into a matmul:
+  // batch dims of indices -> lhs space dims
+  // offset dims of indices -> lhs contracting dims
+  // collapsed dims of operand -> rhs contracting dims
+  // uncollapsed dims of operand -> rhs space dims
+
+  std::vector<int64> batch_dims;
+  for (int64 i = 0; i < gather->shape().rank(); ++i) {
+    if (!absl::c_linear_search(dnums.offset_dims(), i)) {
+      batch_dims.push_back(i);
+    }
+  }
+  auto operand = gather->operand(0);
+  auto indices = gather->operand(1);
+
+  // Condition: The lhs only has one contracting dim.
+  if (dnums.offset_dims().size() != 1 ||
+      dnums.index_vector_dim() != indices->shape().rank() - 1) {
+    return false;
+  }
+
+  // Condition: The length of offset dim is 1, so we can view it as a contracting dim.
+  for (auto dim : dnums.offset_dims()) {
+    if (indices->shape().dimensions(dim) != 1) {
+      return false;
+    }
+  }
+
+  // Condition: The rhs only has one contracting dim.
+  if (dnums.collapsed_slice_dims().size() != 1) {
+    return false;
+  }
+
+  // Condition: The rhs only has one space dim.
+  if (operand->shape().rank() != 2) {
+    return false;
+  }
+
+  // Condition: The uncollapsed dims of the slice have the same lengths of operand shapes,
+  // so we can view them as space dims.
+  const auto& slice_size = gather->gather_slice_sizes();
+  for (int64 i = 0; i < slice_size.size(); ++i) {
+    if (!absl::c_linear_search(dnums.collapsed_slice_dims(), i)) {
+      if (slice_size[i] != operand->shape().dimensions(i)) {
+        return false;
+      }
+    }
+  }
+
+  return true;
 }
 
 }  // namespace spmd
