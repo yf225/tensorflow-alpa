@@ -331,6 +331,8 @@ StatusOr<NcclComm::Lock> AcquireNcclComm(
   if (*comm == nullptr) {
     int nranks = comm_key.first.devices().size();
     const ncclUniqueId& id = (**clique)->unique_id;
+    std::this_thread::sleep_for(std::chrono::milliseconds(
+        1000 * comm_key.first.devices().front().value() / 4));
     XLA_CUDA_RETURN_IF_ERROR(ncclCommInitRank(comm.get(), nranks, id, rank));
   }
   return comm;
