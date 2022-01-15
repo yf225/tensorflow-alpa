@@ -800,7 +800,8 @@ Status FilterStrategy(const HloInstruction* ins,
   if (ins->shape().dimensions(batch_dim) % device_mesh.dim(mesh_dim) != 0) {
     return tensorflow::errors::InvalidArgument(
         "The length of batch dimension is "
-        "not divisible by the number of devices");
+        "not divisible by the number of devices. "
+        "Instruction: " + ins->ToString());
   }
 
   std::vector<ShardingStrategy> new_leaf_vector;
@@ -1797,7 +1798,8 @@ void FixMixedMeshShapeResharding(HloInstruction* inst, int operand_num,
     if (!src_inter_sharding.has_value() || !dst_inter_sharding.has_value()) {
       src_inter_sharding = HloSharding::Replicate();
       dst_inter_sharding = HloSharding::Replicate();
-      LOG(WARNING) << "Invalid mixed mesh shape resharding.";
+      LOG(WARNING) << "Invalid mixed mesh shape resharding: "
+          << src_sharding.ToString() << " -> " << dst_sharding.ToString();
     }
 
     HloInstruction* src_inter = inst->parent()->AddInstruction(

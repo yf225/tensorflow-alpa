@@ -175,7 +175,7 @@ class ProfilingResult {
     CommDictKey key(Group2Str(replica_groups), dtype);
     if (!cost_dict.count(key)) {
       LOG(WARNING) << "Warning: cannot find key: (" << key.first << ", "
-                   << gpu::ToString(key.second) << ")" << std::endl;
+                   << gpu::ToString(key.second) << ")";
       return size;
     }
     CommDictValue cost_list = cost_dict.at(key);
