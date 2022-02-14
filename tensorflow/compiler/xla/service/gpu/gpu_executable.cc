@@ -206,6 +206,11 @@ Status ExecuteThunks(const std::string& module_name,
     // execute before the program is scheduled to start on the main stream.
     sub_streams.back()->ThenWaitFor(main_stream);
   }
+  const int sub_stream_size = sub_streams.size();
+  se::Stream* host_to_device_stream =
+      run_options->run_options().host_to_device_stream();
+  se::Stream* device_to_host_stream =
+      run_options->run_options().device_to_host_stream();
 
   uint64_t start_micros = tensorflow::Env::Default()->NowMicros();
 
@@ -224,6 +229,14 @@ Status ExecuteThunks(const std::string& module_name,
     int32_t stream_no = thunk_schedule.StreamNumberForThunk(thunk.get());
     se::Stream* stream =
         (stream_no == 0 ? main_stream : sub_streams[stream_no - 1].get());
+    se::Stream* async_stream;
+    if (thunk->kind() == Thunk::kSwapIn) {
+      async_stream = host_to_device_stream;
+    } else if (thunk->kind() == Thunk::kSwapOut) {
+      async_stream = device_to_host_stream;
+    } else {
+      async_stream = async_comms_stream.ok() ? async_comms_stream->get() : nullptr;
+    }
 
     for (const Thunk* dependency : thunk_schedule.DependsOn(thunk.get())) {
       stream->ThenWaitFor(FindOrDie(thunk_to_finish_event, dependency).get());
@@ -240,7 +253,7 @@ Status ExecuteThunks(const std::string& module_name,
     Thunk::ExecuteParams thunk_params{
         &buffer_allocations,
         stream,
-        async_comms_stream.ok() ? async_comms_stream->get() : nullptr,
+        async_stream,
         run_options->run_options().run_id(),
         run_options->run_options().device_assignment(),
         gpu_options && gpu_options->gpu_global_device_ids()
@@ -953,6 +966,15 @@ GetOutputInfo(const HloModule& hlo_module, const BufferAssignment& assignment) {
         return Status::OK();
       }));
   return output;
+}
+
+int64_t GpuExecutable::TotalAllocationSize() const {
+  int64_t total_size = 0;
+  for (const BufferAllocation& allocation : allocations_) {
+    //std::cerr << allocation.ToString();
+    total_size += allocation.size();
+  }
+  return total_size;
 }
 
 }  // namespace gpu

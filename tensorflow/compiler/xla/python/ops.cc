@@ -77,12 +77,13 @@ void BuildOpsSubmodule(py::module* m) {
       "AllReduce",
       static_cast<XlaOp (*)(
           XlaOp, const XlaComputation&, absl::Span<const ReplicaGroup>,
-          const absl::optional<ChannelHandle>&, const absl::optional<Shape>&)>(
-          &AllReduce),
+          const absl::optional<ChannelHandle>&, const absl::optional<Shape>&,
+          const absl::optional<bool>)>(&AllReduce),
       py::arg("operand"), py::arg("computation"),
       py::arg("replica_groups") = py::list(),
       py::arg("channel_id") = absl::nullopt,
-      py::arg("shape_with_layout") = absl::nullopt);
+      py::arg("shape_with_layout") = absl::nullopt,
+      py::arg("use_global_device_ids") = absl::nullopt);
   ops.def("ReduceScatter", &ReduceScatter, py::arg("operand"),
           py::arg("computation"), py::arg("scatter_dimension"),
           py::arg("shard_count"), py::arg("replica_groups") = py::list(),
@@ -92,7 +93,9 @@ void BuildOpsSubmodule(py::module* m) {
   ops.def("AllToAll", &AllToAll, py::arg("operand"), py::arg("split_dimension"),
           py::arg("concat_dimension"), py::arg("split_count"),
           py::arg("replica_groups") = py::list(),
-          py::arg("layout") = absl::nullopt);
+          py::arg("channel_id") = absl::nullopt,
+          py::arg("layout") = absl::nullopt,
+          py::arg("use_global_device_ids") = absl::nullopt);
   ops.def("ApproxTopK", &ApproxTopK, py::arg("builder"), py::arg("operands"),
           py::arg("init_values"), py::arg("top_k"), py::arg("reduction_dim"),
           py::arg("comparator"), py::arg("recall_target") = 0.9,
@@ -200,6 +203,23 @@ void BuildOpsSubmodule(py::module* m) {
       py::arg("output_operand_aliasing"), py::arg("literal") = nullptr,
       py::arg("schedule") = CustomCallSchedule::SCHEDULE_NONE,
       py::arg("api_version") = CustomCallApiVersion::API_VERSION_ORIGINAL);
+  ops.def(
+      "CustomCallWithOnlyAliasing",
+      [](XlaBuilder* builder, const py::bytes& call_target_name,
+         absl::Span<const XlaOp> operands, const Shape& shape,
+         const py::bytes& opaque, bool has_side_effect,
+         absl::Span<const std::pair<ShapeIndex, std::pair<int64_t, ShapeIndex>>>
+             output_operand_aliasing,
+         CustomCallSchedule schedule) -> XlaOp {
+        return CustomCall(builder, call_target_name, operands, shape, opaque,
+                          has_side_effect,
+                          /*output_operand_aliasing=*/output_operand_aliasing,
+                          /*literal=*/nullptr, schedule);
+      },
+      py::arg("builder"), py::arg("call_target_name"), py::arg("operands"),
+      py::arg("shape"), py::arg("opaque") = py::bytes(""),
+      py::arg("has_side_effect") = false, py::arg("output_operand_aliasing"),
+      py::arg("schedule") = CustomCallSchedule::SCHEDULE_NONE);
   ops.def("Dot", &Dot, py::arg("lhs"), py::arg("rhs"),
           py::arg("precision_config") = nullptr,
           py::arg("preferred_element_type") = absl::nullopt);

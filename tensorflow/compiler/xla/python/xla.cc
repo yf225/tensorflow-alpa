@@ -50,6 +50,7 @@ limitations under the License.
 #include "tensorflow/compiler/xla/python/traceback.h"
 #include "tensorflow/compiler/xla/python/types.h"
 #include "tensorflow/compiler/xla/python/xla_compiler.h"
+#include "tensorflow/compiler/xla/service/collective_ops_utils.h"
 #include "tensorflow/compiler/xla/shape.h"
 #include "tensorflow/compiler/xla/shape_util.h"
 #include "tensorflow/compiler/xla/statusor.h"
@@ -130,7 +131,68 @@ PYBIND11_MODULE(xla_extension, m) {
       .def_property_readonly(
           "client",
           [](const ClientAndPtr<PjRtDevice>& device) { return device.client; })
+      .def(
+          "memory_allocated",
+          [](const PjRtDevice& device) {
+            const int64_t invalid = -1;
+
+            xla::PjRtClient* client = device.client();
+            if (client->platform_name() != "gpu") {
+              return invalid;
+            }
+            xla::PjRtStreamExecutorClient* gpu_client =
+                dynamic_cast<xla::PjRtStreamExecutorClient*>(client);
+            return gpu_client->allocator()->bytes_used(device.local_hardware_id());
+          })
+      .def(
+          "max_memory_allocated",
+          [](const PjRtDevice& device) {
+            const int64_t invalid = -1;
+
+            xla::PjRtClient* client = device.client();
+            if (client->platform_name() != "gpu") {
+              return invalid;
+            }
+            xla::PjRtStreamExecutorClient* gpu_client =
+                dynamic_cast<xla::PjRtStreamExecutorClient*>(client);
+            return gpu_client->allocator()->bytes_peak_in_use(device.local_hardware_id());
+          })
+      .def(
+          "available_memory",
+          [](const PjRtDevice& device) {
+            const int64_t invalid = -1;
+
+            xla::PjRtClient* client = device.client();
+            if (client->platform_name() != "gpu") {
+              return invalid;
+            }
+            xla::PjRtStreamExecutorClient* gpu_client =
+                dynamic_cast<xla::PjRtStreamExecutorClient*>(client);
+            return gpu_client->allocator()->bytes_available(device.local_hardware_id());
+          })
+      .def(
+        "clear_memory_stats",
+        [](const PjRtDevice& device) {
+            const bool invalid = false;
+
+            xla::PjRtClient* client = device.client();
+            if (client->platform_name() != "gpu") {
+              return invalid;
+            }
+            xla::PjRtStreamExecutorClient* gpu_client =
+                dynamic_cast<xla::PjRtStreamExecutorClient*>(client);
+            return gpu_client->allocator()->ClearStats(device.local_hardware_id());
+          })
       .def("__str__", &PjRtDevice::DebugString)
+      .def("synchronize_all_activity", [](PjRtDevice& device) {
+             PjRtStreamExecutorDevice* stream_device =
+               dynamic_cast<PjRtStreamExecutorDevice*>(&device);
+             CHECK_NE(stream_device, nullptr);
+             TF_ASSIGN_OR_RETURN(LocalDeviceState* local_device,
+                                 stream_device->GetLocalDeviceState());
+             local_device->SynchronizeAllActivity();
+             return Status::OK();
+           })
       .def("transfer_to_infeed",
            [](PjRtDevice& device, const LiteralSlice& literal) {
              GlobalPyRefManager()->CollectGarbage();
@@ -338,13 +400,31 @@ PYBIND11_MODULE(xla_extension, m) {
                                } else {
                                  return py::none();
                                }
-                             });
+                             })
+      .def("total_allocation_size", [](PyExecutable* exec){
+             const PjRtExecutable* pjrt_executable = &exec->pjrt_executable();
+             const PjRtStreamExecutorExecutable* stream_executable = dynamic_cast<const PjRtStreamExecutorExecutable*>(pjrt_executable);
+             absl::Span<const std::shared_ptr<LocalExecutable>> local_executables =\
+                 stream_executable->executables();
+             Executable* executable = local_executables[0]->executable();
+             return executable->TotalAllocationSize();
+           })
+      .def_property_readonly("traceback", &PyExecutable::traceback);
 
   m.def("buffer_to_dlpack_managed_tensor", BufferToDLPackManagedTensor,
         py::arg("buffer"), py::arg("take_ownership") = true);
   m.def("dlpack_managed_tensor_to_buffer", DLPackManagedTensorToBuffer,
         py::arg("dlpack"), py::arg("cpu_backend") = nullptr,
         py::arg("gpu_backend") = nullptr);
+
+  // TODO(lmzheng): Remove this
+  m.def("init_nccl_communicators", [](
+      PyClient* py_client,
+      std::shared_ptr<DistributedRuntimeClient> distributed_client,
+      int node_id,
+      PyExecutable* py_executable) {
+    return Status::OK();
+  });
 
   BuildProfilerSubmodule(&m);
   BuildOpsSubmodule(&m);

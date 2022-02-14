@@ -694,6 +694,7 @@ cc_library(
         "outfeed_thunk.cc",
         "replica_id_thunk.cc",
         "sequential_thunk.cc",
+        "swap_thunk.cc",
         "thunk_schedule.cc",
         "triangular_solve_thunk.cc",
         "while_thunk.cc",
@@ -717,6 +718,7 @@ cc_library(
         "outfeed_thunk.h",
         "replica_id_thunk.h",
         "sequential_thunk.h",
+        "swap_thunk.h",
         "thunk_schedule.h",
         "triangular_solve_thunk.h",
         "while_thunk.h",
@@ -1621,6 +1623,7 @@ cc_library(
         ":alias_passthrough_params",
         ":all_reduce_blueconnect",
         ":cudnn_batchnorm_rewriter",
+        ":common_computation_elimination",
         ":fusion_bitcast_lift",
         ":fusion_merger",
         ":gemm_broadcast_folding_rewriter",
@@ -1716,8 +1719,10 @@ cc_library(
         "//tensorflow/compiler/xla/service:hlo_pass",
         "//tensorflow/compiler/xla/service:hlo_pass_pipeline",
         "//tensorflow/compiler/xla/service:hlo_proto_util",
+        "//tensorflow/compiler/xla/service:hlo_swap_insertion",
         "//tensorflow/compiler/xla/service:hlo_subcomputation_unification",
         "//tensorflow/compiler/xla/service:hlo_verifier",
+        "//tensorflow/compiler/xla/service:identity_remover",
         "//tensorflow/compiler/xla/service:llvm_compiler",
         "//tensorflow/compiler/xla/service:logistic_expander",
         "//tensorflow/compiler/xla/service:loop_schedule_linearizer",
@@ -1725,6 +1730,7 @@ cc_library(
         "//tensorflow/compiler/xla/service:qr_expander",
         "//tensorflow/compiler/xla/service:real_imag_expander",
         "//tensorflow/compiler/xla/service:reduce_scatter_combiner",
+        "//tensorflow/compiler/xla/service:remat_identity_fixer",
         "//tensorflow/compiler/xla/service:reshape_mover",
         "//tensorflow/compiler/xla/service:result_caster",
         "//tensorflow/compiler/xla/service:rng_bit_generator_expander",
@@ -1744,6 +1750,9 @@ cc_library(
         "//tensorflow/compiler/xla/service:zero_sized_hlo_elimination",
         "//tensorflow/compiler/xla/service/gpu/llvm_gpu_backend",
         "//tensorflow/compiler/xla/service/llvm_ir:llvm_util",
+        "//tensorflow/compiler/xla/service/spmd:auto_sharding",
+        "//tensorflow/compiler/xla/service/spmd:grad_acc_rewrite",
+        "//tensorflow/compiler/xla/service/spmd:slice_auto_sharded_stages",
         "//tensorflow/core:lib",
         "//tensorflow/core:lib_internal",
         "//tensorflow/core/platform:regexp",
@@ -2551,6 +2560,37 @@ cc_library(
         "//tensorflow/core:lib_proto_parsing",
         "//tensorflow/stream_executor/lib",
         "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
+    name = "common_computation_elimination",
+    srcs = [
+        "common_computation_elimination.cc",
+    ],
+    hdrs = [
+        "common_computation_elimination.h",
+    ],
+    deps = [
+        "//tensorflow/compiler/xla/service:hlo",
+        "//tensorflow/compiler/xla/service:hlo_pass",
+    ],
+)
+
+cc_library(
+    name = "gpu_cost_model",
+    srcs = [
+        "gpu_cost_model.cc",
+    ],
+    hdrs = [
+        "gpu_cost_model.h",
+    ],
+    deps = [
+        ":backend_configs_cc",
+        ":cublas_cudnn",
+        "//tensorflow/compiler/xla/service:hlo",
+        "//tensorflow/compiler/xla/service:pass_context",
+        "//tensorflow/compiler/xla/service/spmd:auto_sharding",
     ],
 )
 

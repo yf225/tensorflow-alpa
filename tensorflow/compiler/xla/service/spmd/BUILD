@@ -146,3 +146,45 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
     ],
 )
+
+cc_library(
+    name = "auto_sharding",
+    srcs = ["auto_sharding.cc", "auto_sharding_util.cc", "auto_sharding_dot_handler.cc"],
+    hdrs = ["auto_sharding.h", "auto_sharding_strategy.h", "auto_sharding_util.h"],
+    deps = [
+        "//tensorflow/compiler/xla:shape_util",
+        "//tensorflow/compiler/xla/service:dump",
+        "//tensorflow/compiler/xla/service:hlo",
+        "//tensorflow/compiler/xla/service:hlo_live_range",
+        "//tensorflow/compiler/xla/service:hlo_memory_scheduler",
+        "//tensorflow/compiler/xla/service:hlo_pass",
+        "//tensorflow/compiler/xla/service:hlo_sharding_util",
+        "//tensorflow/compiler/xla/service:pass_context",
+        "@pybind11",
+    ],
+)
+
+cc_library(
+    name = "grad_acc_rewrite",
+    srcs = ["grad_acc_rewrite.cc"],
+    hdrs = ["grad_acc_rewrite.h"],
+    deps = [
+        "//tensorflow/compiler/xla:shape_util",
+        "//tensorflow/compiler/xla/service:hlo",
+        "//tensorflow/compiler/xla/service:hlo_pass",
+        "//tensorflow/compiler/xla/service:pass_context",
+    ],
+)
+
+cc_library(
+    name = "slice_auto_sharded_stages",
+    srcs = ["slice_auto_sharded_stages.cc"],
+    hdrs = ["slice_auto_sharded_stages.h"],
+    deps = [
+        ":auto_sharding",
+        "//tensorflow/compiler/xla:shape_util",
+        "//tensorflow/compiler/xla/service:hlo",
+        "//tensorflow/compiler/xla/service:hlo_pass",
+        "@pybind11",
+    ],
+)

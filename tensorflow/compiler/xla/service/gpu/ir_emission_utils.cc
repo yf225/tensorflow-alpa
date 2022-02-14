@@ -128,7 +128,11 @@ std::array<int64_t, 3> GetReductionTiling(
   if (reduction_dimensions.is_row_reduction) {
     int64_t tile_z = std::min(reduction_dimensions.dimensions[0],
                               BatchedReductionRaceFreeBound());
+#if TENSORFLOW_USE_ROCM
     return {tile_z, 1, 16};
+#else
+    return {tile_z, 1, 64};
+#endif
   }
 
   // Column reduction.
@@ -144,6 +148,11 @@ bool IsCustomCallToCusolver(const HloInstruction& hlo) {
   const auto& target = hlo.custom_call_target();
   return target == kCusolverCholeskyCallTarget;
 }
+
+const char* const kBuiltinSwapOutTarget = "__builtin$SwapOut";
+const char* const kBuiltinSwapInTarget = "__builtin$SwapIn";
+const char* const kBuiltinSwapDoneTarget = "__builtin$SwapDone";
+const char* const kBuiltinMemZeroTarget = "__builtin$MemZero";
 
 static ReductionDimensions GetReductionKindAndContiguousComponentsImpl(
     const Shape& input_shape, absl::Span<const int64_t> dims_to_reduce) {

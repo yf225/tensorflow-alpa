@@ -36,10 +36,21 @@ namespace xla {
 namespace gpu {
 namespace {
 
+bool IsSkipped(const int64_t op_id, const std::string& env_name) {
+  // Return whether this op should be skipped.
+  const char* env = getenv(env_name.c_str());
+  if (env == nullptr) {
+    return false;
+  }
+  std::string key = absl::StrFormat(".%d.", op_id);
+  return strstr(env, key.c_str()) != nullptr;
+}
+
 Status RunAllReduce(const NcclAllReduceConfig& config,
                     const std::vector<NcclCollectiveThunk::Buffer>& buffers,
                     const BufferAllocations& buffer_allocations,
-                    se::Stream& stream, ncclComm_t comm) {
+                    se::Stream& stream, ncclComm_t comm,
+                    const std::string& env_name) {
 #if XLA_ENABLE_XCCL
   int device_ordinal = stream.parent()->device_ordinal();
   VLOG(3) << "Performing all-reduce from device ordinal: " << device_ordinal;
@@ -48,6 +59,38 @@ Status RunAllReduce(const NcclAllReduceConfig& config,
 
   cudaStream_t* cu_stream = reinterpret_cast<cudaStream_t*>(
       stream.implementation()->GpuStreamMemberHack());
+
+  bool skip = IsSkipped(config.config.op_id, env_name);
+
+  if (skip) {
+    for (size_t i = 0; i < buffers.size(); ++i) {
+      const NcclCollectiveThunk::Buffer& buffer = buffers[i];
+      const void* send_buffer =
+          buffer_allocations.GetDeviceAddress(buffer.source_buffer).opaque();
+      void* recv_buffer =
+          buffer_allocations.GetDeviceAddress(buffer.destination_buffer)
+              .opaque();
+
+      if (send_buffer == recv_buffer) {
+        // if (device_ordinal == 0) {
+        //  std::cerr << "skip all-reduce " << config.config.op_id << std::endl;
+        //}
+      } else {
+        PrimitiveType element_type = config.config.operand_element_type[i];
+        int size = buffer.element_count *
+                   ShapeUtil::ByteSizeOfPrimitiveType(element_type);
+
+        // if (device_ordinal == 0) {
+        //  std::cerr << "skip-copy all-reduce " << config.config.op_id << ",
+        //  size: " << size <<  std::endl;
+        //}
+        XLA_CUDA_RETURN_IF_ERROR(cudaMemcpyAsync(recv_buffer, send_buffer, size,
+                                                 cudaMemcpyDeviceToDevice,
+                                                 *cu_stream));
+      }
+    }
+    return Status::OK();
+  }
 
   XLA_CUDA_RETURN_IF_ERROR(ncclGroupStart());
   for (size_t i = 0; i < buffers.size(); ++i) {
@@ -248,7 +291,7 @@ Status NcclAllReduceThunk::RunNcclCollective(const ExecuteParams& params,
                                              ncclComm_t comm) {
   se::Stream& stream = *params.stream;
   TF_RETURN_IF_ERROR(RunAllReduce(config_, buffers_, *params.buffer_allocations,
-                                  stream, comm));
+                                  stream, comm, skip_env_name_));
 
   int device_ordinal = stream.parent()->device_ordinal();
   VLOG(3) << "Done performing all-reduce for ordinal: " << device_ordinal;
@@ -284,7 +327,7 @@ Status NcclAllReduceStartThunk::RunNcclCollective(const ExecuteParams& params,
   async_comms_stream.ThenWaitFor(params.stream);
 
   TF_RETURN_IF_ERROR(RunAllReduce(config_, buffers_, *params.buffer_allocations,
-                                  async_comms_stream, comm));
+                                  async_comms_stream, comm, skip_env_name_));
 
   // Create an event on the async stream for the completion of the all-reduce.
   se::Event done_event(async_comms_stream.parent());

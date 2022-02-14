@@ -37,9 +37,15 @@ bool IsMatrixMultiplication(const HloInstruction& dot);
 
 inline constexpr int64_t WarpSize() { return 32; }
 
-// Need at least 1024 threads/block for reasonable tree reduction
+// Need at least 256 threads/block for reasonable tree reduction
 // performance (assuming all data fits).
-inline constexpr int64_t MinThreadsXRowReduction() { return 1024; }
+inline constexpr int64_t MinThreadsXRowReduction() {
+#if TENSORFLOW_USE_ROCM
+  return 1024;
+#else
+  return 256;
+#endif
+}
 
 // When doing batched row reduction, how big the batch dimension could be.
 inline constexpr int64_t BatchedReductionRaceFreeBound() { return 8; }
@@ -56,6 +62,12 @@ bool IsCustomCallToCusolver(const HloInstruction& hlo);
 // Cholesky decomposition, workspace is scratch space for cuSolver, and info
 // is a success/failure code per batch element.
 extern const char* const kCusolverCholeskyCallTarget;
+
+// Swap in or out. 
+extern const char* const kBuiltinSwapOutTarget;
+extern const char* const kBuiltinSwapInTarget;
+extern const char* const kBuiltinSwapDoneTarget;
+extern const char* const kBuiltinMemZeroTarget;
 
 // Layout analysis for fusion. The constructor will analyze the given LMHLO
 // fusion operation and store the inferred layouts of fusion internal values.

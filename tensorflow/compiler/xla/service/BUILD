@@ -2605,6 +2605,7 @@ cc_library(
         ":hlo_pass",
         ":hlo_query",
         ":hlo_reachability",
+        ":pass_context",
         ":shape_inference",
         "//tensorflow/compiler/xla:array2d",
         "//tensorflow/compiler/xla:literal",
@@ -4516,6 +4517,60 @@ tf_cc_test(
     ],
 )
 
+cc_library(
+    name = "hlo_swap_insertion", 
+    srcs = ["hlo_swap_insertion.cc"], 
+    hdrs = ["hlo_swap_insertion.h"], 
+    deps = [
+        ":buffer_value",
+        ":call_graph",
+        ":flatten_call_graph",
+        ":hlo",
+        ":hlo_dce",
+        ":hlo_memory_scheduler",
+        ":hlo_ordering",
+        ":logical_buffer",
+        ":tuple_points_to_analysis",
+        "//tensorflow/compiler/xla:shape_util",
+        "//tensorflow/compiler/xla:status_macros",
+        "//tensorflow/compiler/xla:statusor",
+        "//tensorflow/compiler/xla:types",
+        "//tensorflow/compiler/xla:util",
+        "//tensorflow/compiler/xla/service/spmd:spmd_partitioner",
+        "//tensorflow/core:lib",
+        "//tensorflow/core:lib_internal",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ]
+)
+tf_cc_test(
+    name = "hlo_swap_insertion_test",
+    srcs = ["hlo_swap_insertion_test.cc"],
+    deps = [
+        ":hlo_swap_insertion",
+        ":flatten_call_graph",
+        ":hlo",
+        ":hlo_matchers",
+        ":hlo_ordering",
+        "//tensorflow/compiler/xla:shape_util",
+        "//tensorflow/compiler/xla:types",
+        "//tensorflow/compiler/xla:xla_data_proto_cc",
+        "//tensorflow/compiler/xla/service/gpu:gpu_compiler",
+        "//tensorflow/compiler/xla/service/gpu:gpu_executable",
+        "//tensorflow/compiler/xla/service/gpu/tests:gpu_codegen_test",
+        "//tensorflow/compiler/xla/tests:hlo_test_base",
+        "//tensorflow/compiler/xla/tests:xla_internal_test_main",
+        "//tensorflow/core:lib",
+        "//tensorflow/core:test",
+        "//tensorflow/core/platform:resource_loader",
+        "@com_google_absl//absl/flags:flag",
+    ]
+)
+
 tf_cc_test(
     name = "hlo_dce_test",
     srcs = ["hlo_dce_test.cc"],
@@ -6237,4 +6292,49 @@ py_test(
         ":generate_test_hlo_checks",
         "@absl_py//absl/testing:absltest",
     ] + xla_py_test_deps(),
+)
+
+cc_library(
+    name = "identity_remover",
+    srcs = [
+        "identity_remover.cc",
+    ],
+    hdrs = [
+        "identity_remover.h",
+    ],
+    deps = [
+        ":hlo",
+        ":hlo_pass",
+    ],
+)
+
+cc_library(
+    name = "remat_identity_fixer",
+    srcs = [
+        "remat_identity_fixer.cc",
+    ],
+    hdrs = [
+        "remat_identity_fixer.h",
+    ],
+    deps = [
+        ":hlo",
+        ":hlo_pass",
+    ],
+)
+
+cc_library(
+    name = "pass_context",
+    srcs = [
+        "pass_context.cc",
+    ],
+    hdrs = [
+        "pass_context.h",
+    ],
+    deps = [
+        "//tensorflow/compiler/xla:types",
+        "//tensorflow/compiler/xla:util",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/types:any",
+        "@pybind11",
+    ],
 )
