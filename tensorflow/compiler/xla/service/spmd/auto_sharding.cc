@@ -1132,12 +1132,16 @@ BuildStrategyAndCost(const HloInstructionSequence& sequence,
               src_strategies, ins->shape(), instruction_id,
               /* have_memory_cost= */ false, leaf_strategies);
         } else {
-          LOG(FATAL) << "Unknown CustomCall instruction: " + ins->name();
+          LOG(FATAL) << "Unknown CustomCall instruction: " + ins->ToString();
         }
         break;
       }
-      default:
-        LOG(FATAL) << "Unhandled instruction: " + ins->ToString();
+      default: {
+        strategies = CreateLeafStrategyVector(instruction_id, leaf_strategies);
+        AddReplicatedStrategy(ins, cluster_env, strategy_map, strategies, 0);
+        break;
+      }
+        //LOG(FATAL) << "Unhandled instruction: " + ins->ToString();
     }
 
     // Debug options: forcibly set the the strategy of some instructions.

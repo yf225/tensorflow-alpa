@@ -550,6 +550,9 @@ InstructionBatchDimMap BuildInstructionBatchDimMap(
         break;
       case HloOpcode::kWhile:
         break;
+      case HloOpcode::kGather:
+      case HloOpcode::kScatter:
+        break;
       default:
         LOG(FATAL) << "Unhandled instruction: " + ins->name();
     }
